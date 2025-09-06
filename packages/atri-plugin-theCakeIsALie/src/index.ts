@@ -3,12 +3,12 @@ import { Structs, type SendMessageSegment } from 'node-napcat-ts'
 
 export class Plugin extends BasePlugin {
   pluginName = 'the_cake_is_a_lie'
-  auto_load_config = false
+  disableAutoLoadConfig = true
 
   load() {
     this.regMessageEvent({
       regexp: /^(the cake is a lie|蛋糕是个谎言)$/i,
-      callback: this.cake_is_a_lie.bind(this),
+      callback: this.cakeIsALie.bind(this),
     })
   }
 
@@ -20,7 +20,7 @@ export class Plugin extends BasePlugin {
     Structs.text('But The Cake Is A Lie'),
   ]
 
-  private async cake_is_a_lie({ context }: MessageCallback) {
+  private async cakeIsALie({ context }: MessageCallback) {
     this.messages.forEach(async (message, index) => {
       setTimeout(async () => {
         await this.bot.sendMsg(context, [message], { reply: false, at: false })
