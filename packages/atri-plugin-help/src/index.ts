@@ -8,7 +8,7 @@ export interface HelpCommandContext {
 
 export class Plugin extends BasePlugin {
   pluginName = 'help'
-  disableAutoLoadConfig = false
+  disableAutoLoadConfig = true
 
   load() {
     this.regCommandEvent({
