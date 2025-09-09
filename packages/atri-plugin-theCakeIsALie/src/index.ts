@@ -2,7 +2,6 @@ import { BasePlugin, type MessageCallback } from '@atri-bot/core'
 import { Structs, type SendMessageSegment } from 'node-napcat-ts'
 
 export class Plugin extends BasePlugin {
-  pluginName = 'the_cake_is_a_lie'
   disableAutoLoadConfig = true
 
   load() {

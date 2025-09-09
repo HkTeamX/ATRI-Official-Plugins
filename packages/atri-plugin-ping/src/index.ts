@@ -12,7 +12,6 @@ export interface PingCommandContext {
 }
 
 export class Plugin extends BasePlugin<PingConfig> {
-  pluginName = 'ping'
   defaultConfig: PingConfig = {
     defaultReply: 'pong',
   }

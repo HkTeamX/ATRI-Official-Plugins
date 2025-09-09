@@ -2,4 +2,4 @@
 
 # 🤖 ATRI-Official-Plugins
 
-机器人框架 [ATRI](https://github.com/HkTeamX/ATRI) 自带插件仓库
+机器人框架 [ATRI](https://github.com/HkTeamX/ATRI) 官方插件仓库

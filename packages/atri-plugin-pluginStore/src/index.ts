@@ -1,198 +1,314 @@
+import {
+  BasePlugin,
+  CommanderUtils,
+  type CommandCallback,
+  type LoadPluginHookContext,
+} from '@atri-bot/core'
 import { Command } from 'commander'
+import { execa } from 'execa'
 import { Structs, type SendMessageSegment } from 'node-napcat-ts'
 import fs from 'node:fs'
 import path from 'node:path'
-import url from 'node:url'
-import type { PluginHookContext } from '../atri.js'
-import { BasePlugin } from '../plugin.js'
-import type { CommandCallback } from '../reg_event.js'
-import { commander_parse_enum } from '../utils.js'
 
 export interface PluginStoreConfig {
   plugins: Record<string, boolean>
-  repositories: {
-    name: string
-    url: string
-  }[]
+  autoLoadPlugins: Record<string, boolean>
 }
 
 export interface ShowPluginListContext {
-  params: {
-    refresh?: boolean
-  }
+  params: { refresh?: boolean }
 }
 
 export interface PluginManagementContext {
-  args: ['启用' | '禁用' | '加载' | '卸载', string]
+  args: ['启用' | '禁用' | '加载' | '卸载' | '安装' | '删除', string]
+}
+
+export interface PluginAutoLoadContext {
+  args: [string, '启用' | '禁用']
 }
 
 export class Plugin extends BasePlugin<PluginStoreConfig> {
-  name = 'plugin_store'
-  version = '1.0.0'
-  default_config: PluginStoreConfig = {
+  defaultConfig: PluginStoreConfig = {
     plugins: {},
-    repositories: [
-      {
-        name: '官方插件库',
-        url: 'https://github.com/HkTeamX/atri-plugins',
-      },
-    ],
+    autoLoadPlugins: {},
   }
+
   plugins: Record<string, BasePlugin> = {}
-  plugins_by_name_to_path: Record<string, string> = {}
 
   async load() {
-    this.atri.add_load_plugin_hook('plugin_store', this.load_plugin_hook.bind(this))
-    await this.refresh_plugin_list()
+    this.atri.addPluginLoadHook('plugin_store', this.loadPluginHook.bind(this))
+    await this.refreshPluginList()
 
-    this.reg_command_event({
-      command_name: '插件列表',
+    await Promise.all(
+      Object.keys(this.config.autoLoadPlugins).map((packageName) =>
+        this.atri.loadPlugin(packageName),
+      ),
+    )
+
+    this.regCommandEvent({
+      commandName: '插件列表',
       commander: new Command()
         .description('显示已安装的插件列表')
         .option('-r, --refresh', '刷新插件列表'),
-      need_admin: true,
-      callback: this.handle_show_plugin_list.bind(this),
+      needAdmin: true,
+      callback: this.handleShowPluginList.bind(this),
     })
 
-    this.reg_command_event({
-      command_name: '插件管理',
+    this.regCommandEvent({
+      commandName: '插件管理',
       commander: new Command()
         .description('管理已安装的插件')
         .argument(
           '<action>',
-          '操作 [启用/禁用/加载/卸载]',
-          commander_parse_enum(['启用', '禁用', '加载', '卸载']),
+          '操作 [启用/禁用/加载/卸载/安装/删除]',
+          CommanderUtils.enum(['启用', '禁用', '加载', '卸载', '安装', '删除']),
         )
-        .argument('<plugin_name>', '插件名'),
-      need_admin: true,
-      callback: this.handle_plugin_management.bind(this),
+        .argument('<packageName>', '包名'),
+      needAdmin: true,
+      callback: this.handlePluginManagement.bind(this),
+    })
+
+    this.regCommandEvent({
+      commandName: '插件自启管理',
+      commander: new Command()
+        .description('管理已安装的插件启动自动加载')
+        .argument('<packageName>', '包名')
+        .argument('<action>', '操作 [启用/禁用]', CommanderUtils.enum(['启用', '禁用'])),
+      needAdmin: true,
+      callback: this.handlePluginAutoLoad.bind(this),
     })
   }
 
   unload() {}
 
-  load_plugin_hook(plugin_context: PluginHookContext) {
-    const is_enabled = this.config.plugins[plugin_context.plugin_name] ?? true
-    if (!is_enabled) this.logger.INFO(`插件 ${plugin_context.plugin_name} 被禁用, 跳过加载`)
+  loadPluginHook(hookContext: LoadPluginHookContext) {
+    const is_enabled = this.config.plugins[hookContext.packageName] ?? true
+    if (!is_enabled) this.logger.INFO(`插件 ${hookContext.packageName} 被禁用, 跳过加载`)
     return is_enabled
   }
 
-  async refresh_plugin_list() {
-    // 内置插件
-    const built_in_files = fs
-      .readdirSync(import.meta.dirname)
-      .map((file) => path.join(import.meta.dirname, file))
+  async refreshPluginList() {
+    this.plugins = {}
 
-    const plugin_dir = path.join(this.atri.config.base_dir, 'plugins')
-    const files = fs.readdirSync(plugin_dir).map((file) => path.join(plugin_dir, file))
+    let packageJson: string
 
-    for (const file of [...built_in_files, ...files]) {
-      try {
-        const plugin = await import(url.pathToFileURL(file).toString())
-        const plugin_variable = plugin.Plugin
-        if (plugin_variable) {
-          const plugin_entity = new plugin_variable(this.atri)
-          this.plugins[file] = plugin_entity
-          this.plugins_by_name_to_path[plugin_entity.name] = file
+    try {
+      packageJson = fs.readFileSync(path.join(this.atri.config.baseDir, '../package.json'), 'utf-8')
+    } catch (error) {
+      this.logger.WARN('读取 package.json 失败:', error)
+      throw new Error('读取 package.json 失败')
+    }
+
+    try {
+      const packageData = JSON.parse(packageJson)
+      const dependencies = Object.keys(packageData.dependencies ?? {})
+      const devDependencies = Object.keys(packageData.devDependencies ?? {})
+      const allDependencies = [...dependencies, ...devDependencies]
+
+      for (const packageName of allDependencies) {
+        if (packageName.includes('atri-bot-plugin') || packageName.includes('@atri-bot/plugin-')) {
+          const res = await this.atri.loadPlugin(packageName, {
+            quiet: true,
+            initPlugin: false,
+          })
+          if (res[0] !== 0) continue
+          this.plugins[packageName] = res[1]
         }
-      } catch {
-        this.logger.ERROR(`获取插件 ${file} 信息失败`)
       }
+    } catch (error) {
+      this.logger.WARN('获取插件列表失败:', error)
     }
   }
 
-  async handle_show_plugin_list({ context, params }: CommandCallback<ShowPluginListContext>) {
-    if (params.refresh) await this.refresh_plugin_list()
+  async handleShowPluginList({ context, params }: CommandCallback<ShowPluginListContext>) {
+    if (params.refresh) await this.refreshPluginList()
 
     const message: SendMessageSegment[] = [
       Structs.text(
         `当前已有插件${Object.keys(this.plugins).length}个${params.refresh ? '(已刷新)' : ''}:\n`,
       ),
-      ...Object.entries(this.plugins).map(([file, plugin]) =>
-        Structs.text(
+      ...Object.entries(this.plugins).map(([packageName, plugin]) => {
+        return Structs.text(
           [
-            ` - ${plugin.name} (${plugin.version})`,
-            `   - 内置插件: ${file.startsWith(import.meta.dirname) ? '是' : '否'}`,
-            `   - 插件状态: ${!(plugin.name in this.config.plugins) || this.config.plugins[plugin.name] ? '启用' : '禁用'}`,
-            `   - 加载状态: ${plugin.name in this.atri.loaded_plugins ? '已加载' : '未加载'}\n`,
+            ` - ${packageName} (${plugin.packageJson.version})`,
+            `   - 插件状态: ${!(packageName in this.config.plugins) || this.config.plugins[packageName] ? '启用' : '禁用'}`,
+            `   - 加载状态: ${packageName in this.atri.loadedPlugins ? '已加载' : '未加载'}`,
+            `   - 开机自启: ${packageName in this.config.autoLoadPlugins ? '启用' : '禁用'}\n`,
           ].join('\n'),
-        ),
-      ),
+        )
+      }),
     ]
-    await this.bot.send_msg(context, message)
+    await this.bot.sendMsg(context, message)
   }
 
-  async handle_plugin_management(event_context: CommandCallback<PluginManagementContext>) {
-    const { context, args } = event_context
-    const [action, plugin_name] = args
+  async handlePluginManagement(eventContext: CommandCallback<PluginManagementContext>) {
+    const { context, args } = eventContext
+    const [action, packageName] = args
 
-    if (!this.plugins_by_name_to_path[plugin_name]) {
-      await this.bot.send_msg(context, [Structs.text(`插件 ${plugin_name} 不存在`)])
+    if (action === '安装') {
+      this.installPlugin(eventContext, packageName)
       return
     }
 
-    switch (action) {
-      case '启用':
-        return await this.enable_plugin(event_context, plugin_name)
-      case '禁用':
-        return await this.disable_plugin(event_context, plugin_name)
-      case '加载':
-        return await this.load_plugin(event_context, plugin_name)
-      case '卸载':
-        return await this.unload_plugin(event_context, plugin_name)
-    }
-  }
-
-  async enable_plugin({ context }: CommandCallback<PluginManagementContext>, plugin_name: string) {
-    if (plugin_name in this.config.plugins && this.config.plugins[plugin_name]) {
-      await this.bot.send_msg(context, [Structs.text(`插件 ${plugin_name} 无法启用, 因为已经启用`)])
+    if (!this.plugins[packageName]) {
+      await this.bot.sendMsg(context, [Structs.text(`插件 ${packageName} 不存在`)])
       return
     }
-    this.config.plugins[plugin_name] = true
-    this.save_config()
-    const [ret_code] = await this.atri.load_plugin(this.plugins_by_name_to_path[plugin_name], '')
-    if (ret_code !== 0) {
-      await this.bot.send_msg(context, [
-        Structs.text(`插件 ${plugin_name} 启用成功, 但自动加载失败, ret_code: ${ret_code}`),
-      ])
-    }
 
-    await this.bot.send_msg(context, [Structs.text(`插件 ${plugin_name} 启用成功`)])
+    if (action === '加载') {
+      this.loadPlugin(eventContext, packageName)
+    } else if (action === '卸载') {
+      this.unloadPlugin(eventContext, packageName)
+    } else if (action === '启用') {
+      this.enablePlugin(eventContext, packageName)
+    } else if (action === '禁用') {
+      this.disablePlugin(eventContext, packageName)
+    } else if (action === '删除') {
+      this.uninstallPlugin(eventContext, packageName)
+    }
   }
 
-  async disable_plugin({ context }: CommandCallback<PluginManagementContext>, plugin_name: string) {
-    if (plugin_name in this.config.plugins && !this.config.plugins[plugin_name]) {
-      await this.bot.send_msg(context, [Structs.text(`插件 ${plugin_name} 无法禁用, 因为已经禁用`)])
-      return
-    }
-    this.config.plugins[plugin_name] = false
-    this.save_config()
-    await this.atri.unload_plugin(plugin_name)
-
-    await this.bot.send_msg(context, [Structs.text(`插件 ${plugin_name} 禁用成功`)])
-  }
-
-  async load_plugin({ context }: CommandCallback<PluginManagementContext>, plugin_name: string) {
-    const [ret_code] = await this.atri.load_plugin(this.plugins_by_name_to_path[plugin_name], '')
-    if (ret_code !== 0) {
-      await this.bot.send_msg(context, [
-        Structs.text(`插件 ${plugin_name} 加载失败, ret_code: ${ret_code}`),
+  async enablePlugin(eventContext: CommandCallback<PluginManagementContext>, packageName: string) {
+    if (packageName in this.config.plugins && this.config.plugins[packageName]) {
+      await this.bot.sendMsg(eventContext.context, [
+        Structs.text(`插件 ${packageName} 无法启用, 因为已经启用`),
       ])
       return
     }
 
-    await this.bot.send_msg(context, [Structs.text(`插件 ${plugin_name} 加载成功`)])
+    this.config.plugins[packageName] = true
+    this.saveConfig()
+
+    await this.bot.sendMsg(eventContext.context, [
+      Structs.text(`插件 ${packageName} 启用成功, 自动加载中...`),
+    ])
+
+    await this.loadPlugin(eventContext, packageName)
   }
 
-  async unload_plugin({ context }: CommandCallback<PluginManagementContext>, plugin_name: string) {
-    const [ret_code] = await this.atri.unload_plugin(plugin_name)
-    if (ret_code !== 0) {
-      await this.bot.send_msg(context, [
-        Structs.text(`插件 ${plugin_name} 卸载失败, ret_code: ${ret_code}`),
+  async disablePlugin(eventContext: CommandCallback<PluginManagementContext>, packageName: string) {
+    if (packageName in this.config.plugins && !this.config.plugins[packageName]) {
+      await this.bot.sendMsg(eventContext.context, [
+        Structs.text(`插件 ${packageName} 无法禁用, 因为已经禁用`),
       ])
       return
     }
 
-    await this.bot.send_msg(context, [Structs.text(`插件 ${plugin_name} 卸载成功`)])
+    this.config.plugins[packageName] = false
+    this.saveConfig()
+
+    await this.bot.sendMsg(eventContext.context, [
+      Structs.text(`插件 ${packageName} 禁用成功, 自动卸载中...`),
+    ])
+
+    await this.unloadPlugin(eventContext, packageName)
+  }
+
+  async loadPlugin(eventContext: CommandCallback<PluginManagementContext>, packageName: string) {
+    const response = await this.atri.loadPlugin(packageName)
+    if (response[0] !== 0) {
+      await this.bot.sendMsg(eventContext.context, [
+        Structs.text(`插件 ${packageName} 加载失败:\n`),
+        Structs.text(response[0] === 2 ? `被加载钩子 ${response[1]} 禁用了` : response[1]),
+      ])
+      return
+    }
+
+    await this.bot.sendMsg(eventContext.context, [Structs.text(`插件 ${packageName} 加载成功`)])
+  }
+
+  async unloadPlugin(eventContext: CommandCallback<PluginManagementContext>, pluginName: string) {
+    const response = await this.atri.unloadPlugin(pluginName)
+    if (response[0] !== 0) {
+      await this.bot.sendMsg(eventContext.context, [
+        Structs.text(`插件 ${pluginName} 卸载失败:\n`),
+        Structs.text(response[1]),
+      ])
+      return
+    }
+
+    await this.bot.sendMsg(eventContext.context, [Structs.text(`插件 ${pluginName} 卸载成功`)])
+  }
+
+  async runPnpmCommand(args: string[]): Promise<[0] | [1, string]> {
+    let command = 'npx pnpm'
+    try {
+      await execa('pnpm', ['--version'])
+      command = 'pnpm'
+    } catch (error) {
+      this.logger.DEBUG('未检测到全局 pnpm, 使用 npx 运行 pnpm:', error)
+      command = 'npx pnpm'
+    }
+    try {
+      const response = await execa(command, args, {
+        cwd: path.join(this.atri.config.baseDir, '..'),
+      })
+      this.logger.DEBUG('安装插件成功, pnpm 输出:', response.stdout)
+      return [0]
+    } catch (error) {
+      return [1, (error as Error).message]
+    }
+  }
+
+  async installPlugin(eventContext: CommandCallback<PluginManagementContext>, packageName: string) {
+    await this.bot.sendMsg(eventContext.context, [Structs.text('正在安装插件, 请稍候...')])
+
+    const [retCode, message] = await this.runPnpmCommand(['add', packageName])
+    if (retCode === 1) {
+      await this.bot.sendMsg(eventContext.context, [Structs.text('安装插件失败:' + message)])
+      return
+    }
+
+    await this.handlePluginAutoLoad({
+      ...eventContext,
+      args: [packageName, '启用'],
+    })
+
+    await this.bot.sendMsg(eventContext.context, [Structs.text('插件安装成功, 自动加载中...')])
+
+    await this.loadPlugin(eventContext, packageName)
+
+    await this.refreshPluginList()
+  }
+
+  async uninstallPlugin(
+    eventContext: CommandCallback<PluginManagementContext>,
+    packageName: string,
+  ) {
+    await this.bot.sendMsg(eventContext.context, [Structs.text('正在删除插件, 自动卸载中...')])
+
+    await this.unloadPlugin(eventContext, packageName)
+
+    const [retCode, message] = await this.runPnpmCommand(['remove', packageName])
+    if (retCode === 1) {
+      await this.bot.sendMsg(eventContext.context, [Structs.text('删除插件失败:' + message)])
+      return
+    }
+
+    delete this.config.plugins[packageName]
+    await this.handlePluginAutoLoad({
+      ...eventContext,
+      args: [packageName, '禁用'],
+    })
+
+    console.log(this.config.plugins)
+
+    await this.bot.sendMsg(eventContext.context, [Structs.text('插件删除成功')])
+
+    await this.refreshPluginList()
+  }
+
+  async handlePluginAutoLoad({ context, args }: CommandCallback<PluginAutoLoadContext>) {
+    const [packageName, action] = args
+
+    if (action === '启用') {
+      this.config.autoLoadPlugins[packageName] = true
+      await this.bot.sendMsg(context, [Structs.text(`启用插件 ${packageName} 自启成功`)])
+    } else if (action === '禁用') {
+      delete this.config.autoLoadPlugins[packageName]
+      await this.bot.sendMsg(context, [Structs.text(`禁用插件 ${packageName} 自启成功`)])
+    }
+
+    this.saveConfig()
   }
 }

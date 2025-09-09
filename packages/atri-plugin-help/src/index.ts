@@ -7,7 +7,6 @@ export interface HelpCommandContext {
 }
 
 export class Plugin extends BasePlugin {
-  pluginName = 'help'
   disableAutoLoadConfig = true
 
   load() {
