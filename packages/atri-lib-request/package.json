@@ -1,7 +1,7 @@
 {
-  "name": "@atri-bot/plugin-puppeteer",
-  "version": "1.1.1",
-  "description": "puppeteer plugin for atri framework",
+  "name": "@atri-bot/lib-request",
+  "version": "1.1.0",
+  "description": "request lib for atri framework",
   "author": "huan_kong",
   "license": "MIT",
   "type": "module",
@@ -19,9 +19,10 @@
   },
   "dependencies": {
     "@atri-bot/core": "^1.1.9",
-    "@atri-bot/lib-puppeteer": "^1.1.0",
     "@huan_kong/logger": "^1.0.6",
     "commander": "^14.0.0",
-    "node-napcat-ts": "^0.4.19"
+    "node-napcat-ts": "^0.4.19",
+    "axios": "^1.11.0",
+    "axios-retry": "^4.5.0"
   }
 }
