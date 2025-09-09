@@ -1,6 +1,6 @@
 import { BasePlugin, type CommandCallback } from '@atri-bot/core'
 import { Command } from 'commander'
-import { Structs } from 'node-napcat-ts'
+import { convertCQCodeToJSON, type SendMessageSegment } from 'node-napcat-ts'
 
 export interface PingConfig {
   defaultReply: string
@@ -32,7 +32,9 @@ export class Plugin extends BasePlugin<PingConfig> {
   private async handlePingCommand({ context, args, params }: CommandCallback<PingCommandContext>) {
     await this.bot.sendMsg(
       context,
-      [Structs.text(args[0] ?? params.reply ?? this.config.defaultReply)],
+      convertCQCodeToJSON(
+        params.reply ?? args[0] ?? this.config.defaultReply,
+      ) as SendMessageSegment[],
       { reply: false, at: false },
     )
   }
