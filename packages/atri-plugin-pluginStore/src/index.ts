@@ -24,7 +24,7 @@ export interface PluginManagementContext {
 }
 
 export interface PluginAutoLoadContext {
-  args: [string, '启用' | '禁用']
+  args: ['启用' | '禁用', string]
 }
 
 export class Plugin extends BasePlugin<PluginStoreConfig> {
@@ -72,8 +72,8 @@ export class Plugin extends BasePlugin<PluginStoreConfig> {
       commandName: '插件自启管理',
       commander: new Command()
         .description('管理已安装的插件启动自动加载')
-        .argument('<packageName>', '包名')
-        .argument('<action>', '操作 [启用/禁用]', CommanderUtils.enum(['启用', '禁用'])),
+        .argument('<action>', '操作 [启用/禁用]', CommanderUtils.enum(['启用', '禁用']))
+        .argument('<packageName>', '包名'),
       needAdmin: true,
       callback: this.handlePluginAutoLoad.bind(this),
     })
@@ -118,6 +118,19 @@ export class Plugin extends BasePlugin<PluginStoreConfig> {
     } catch (error) {
       this.logger.WARN('获取插件列表失败:', error)
     }
+
+    // 检查是否存在常用基础插件安装
+    const commonPlugins = ['@atri-bot/plugin-help']
+    for (const packageName of commonPlugins) {
+      if (
+        Object.keys(this.plugins).includes(packageJson) &&
+        !this.config.autoLoadPlugins[packageName] &&
+        !(packageName in this.atri.loadedPlugins)
+      ) {
+        this.config.autoLoadPlugins[packageName] = true
+      }
+    }
+    this.saveConfig()
   }
 
   async handleShowPluginList({ context, params }: CommandCallback<ShowPluginListContext>) {
@@ -261,7 +274,7 @@ export class Plugin extends BasePlugin<PluginStoreConfig> {
 
     await this.handlePluginAutoLoad({
       ...eventContext,
-      args: [packageName, '启用'],
+      args: ['启用', packageName],
     })
 
     await this.bot.sendMsg(eventContext.context, [Structs.text('插件安装成功, 自动加载中...')])
@@ -288,7 +301,7 @@ export class Plugin extends BasePlugin<PluginStoreConfig> {
     delete this.config.plugins[packageName]
     await this.handlePluginAutoLoad({
       ...eventContext,
-      args: [packageName, '禁用'],
+      args: ['禁用', packageName],
     })
 
     console.log(this.config.plugins)
@@ -299,7 +312,7 @@ export class Plugin extends BasePlugin<PluginStoreConfig> {
   }
 
   async handlePluginAutoLoad({ context, args }: CommandCallback<PluginAutoLoadContext>) {
-    const [packageName, action] = args
+    const [action, packageName] = args
 
     if (action === '启用') {
       this.config.autoLoadPlugins[packageName] = true
