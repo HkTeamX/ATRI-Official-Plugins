@@ -11,7 +11,7 @@ export type RenderOptions = ({ templatePath: string } | { html: string }) & {
 }
 
 export interface TestPuppeteerContext {
-  args: [string[]]
+  args: [string[] | string]
 }
 
 export class Plugin extends BasePlugin {
@@ -32,7 +32,9 @@ export class Plugin extends BasePlugin {
   }
 
   async testPuppeteer({ context, args }: CommandCallback<TestPuppeteerContext>) {
-    const html = args[0].join(' ')
+    let html = args[0]
+    if (Array.isArray(html)) html = html.join(' ')
+
     const image = await Puppeteer.render({
       templatePath: path.join(Plugin.pluginDir, 'template/index.html'),
       data: { testDomElement: html },
