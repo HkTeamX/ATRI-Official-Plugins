@@ -42,23 +42,16 @@ importers:
         specifier: ^8.42.0
         version: 8.43.0(eslint@9.35.0(jiti@2.5.1))(typescript@5.9.2)
 
+  packages/atri-lib-cron: {}
+
   packages/atri-lib-puppeteer:
     dependencies:
-      '@atri-bot/core':
-        specifier: ^1.1.9
-        version: 1.1.11
       '@huan_kong/logger':
         specifier: ^1.0.6
         version: 1.0.6
-      commander:
-        specifier: ^14.0.0
-        version: 14.0.0
       ejs:
         specifier: ^3.1.10
         version: 3.1.10
-      node-napcat-ts:
-        specifier: ^0.4.19
-        version: 0.4.19
       puppeteer:
         specifier: ^24.19.0
         version: 24.19.0(typescript@5.9.2)
@@ -69,9 +62,6 @@ importers:
 
   packages/atri-lib-request:
     dependencies:
-      '@atri-bot/core':
-        specifier: ^1.1.9
-        version: 1.1.11
       '@huan_kong/logger':
         specifier: ^1.0.6
         version: 1.0.6
@@ -81,12 +71,6 @@ importers:
       axios-retry:
         specifier: ^4.5.0
         version: 4.5.0(axios@1.11.0)
-      commander:
-        specifier: ^14.0.0
-        version: 14.0.0
-      node-napcat-ts:
-        specifier: ^0.4.19
-        version: 0.4.19
 
   packages/atri-plugin-help:
     dependencies:

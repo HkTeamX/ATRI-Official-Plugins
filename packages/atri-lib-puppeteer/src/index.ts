@@ -1,6 +1,8 @@
+import { Logger, LogLevel } from '@huan_kong/logger'
 import ejs from 'ejs'
 import fs from 'node:fs'
-import puppeteer, { type Browser, type Viewport } from 'puppeteer'
+import process from 'node:process'
+import puppeteer, { type Viewport } from 'puppeteer'
 
 export type RenderOptions<T extends object = Record<string, unknown>> = (
   | { templatePath: string }
@@ -11,25 +13,26 @@ export type RenderOptions<T extends object = Record<string, unknown>> = (
   viewport?: Viewport
 }
 
-export class Puppeteer {
-  static browser: Browser
-  static instance: Puppeteer
+export interface PuppeteerConfig {
+  debug: boolean
+}
 
-  static async unloadBrowser() {
-    if (Puppeteer.browser) {
-      Puppeteer.browser.close()
-    }
+export const browser = await puppeteer.launch()
+
+export class Puppeteer {
+  logger: Logger
+  config: PuppeteerConfig
+
+  constructor(config: PuppeteerConfig = { debug: process.argv.includes('--debug') }) {
+    this.config = config
+    this.logger = new Logger({
+      title: 'Puppeteer',
+      level: config.debug ? LogLevel.DEBUG : LogLevel.INFO,
+    })
   }
 
   static async render(options: RenderOptions) {
-    if (!Puppeteer.browser) {
-      Puppeteer.browser = await puppeteer.launch({
-        headless: true,
-        args: ['--no-sandbox', '--disable-setuid-sandbox'],
-      })
-    }
-
-    const page = await Puppeteer.browser.newPage()
+    const page = await browser.newPage()
 
     try {
       await page.setViewport({
@@ -42,7 +45,7 @@ export class Puppeteer {
       let html: string
 
       if ('html' in options) {
-        html = options.html
+        html = ejs.render(options.html, options.data)
       } else if ('templatePath' in options) {
         if (!fs.existsSync(options.templatePath)) {
           throw new Error(`模板文件不存在: ${options.templatePath}`)
@@ -56,7 +59,7 @@ export class Puppeteer {
 
       // 设置页面内容
       await page.setContent(html, { waitUntil: 'networkidle0' })
-      const element = await page.$(options.element || 'body')
+      const element = await page.$(options.element || 'html')
 
       const screenshotBuffer = await (element ?? page).screenshot({
         type: 'png',
@@ -68,4 +71,10 @@ export class Puppeteer {
       await page.close()
     }
   }
+
+  static async closeBrowser() {
+    if (browser && browser.connected) await browser.close()
+  }
 }
+
+process.on('exit', Puppeteer.closeBrowser)
