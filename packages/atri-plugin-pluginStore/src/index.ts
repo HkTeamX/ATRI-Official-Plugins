@@ -34,15 +34,16 @@ export class Plugin extends BasePlugin<PluginStoreConfig> {
   }
 
   plugins: Record<string, BasePlugin> = {}
+  canNotAutoLoadPlugins = ['@atri-bot/plugin-plugin-store']
 
   async load() {
     this.atri.addPluginLoadHook('plugin_store', this.loadPluginHook.bind(this))
     await this.refreshPluginList()
 
     await Promise.all(
-      Object.keys(this.config.autoLoadPlugins).map((packageName) =>
-        this.atri.loadPlugin(packageName),
-      ),
+      Object.keys(this.config.autoLoadPlugins)
+        .filter((packageName) => !this.canNotAutoLoadPlugins.includes(packageName))
+        .map((packageName) => this.atri.loadPlugin(packageName)),
     )
 
     this.regCommandEvent({
@@ -313,6 +314,11 @@ export class Plugin extends BasePlugin<PluginStoreConfig> {
 
   async handlePluginAutoLoad({ context, args }: CommandCallback<PluginAutoLoadContext>) {
     const [action, packageName] = args
+
+    if (this.canNotAutoLoadPlugins.includes(packageName)) {
+      await this.bot.sendMsg(context, [Structs.text(`插件 ${packageName} 不支持设置自启`)])
+      return
+    }
 
     if (action === '启用') {
       this.config.autoLoadPlugins[packageName] = true
