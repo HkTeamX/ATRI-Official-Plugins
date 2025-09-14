@@ -1,8 +1,7 @@
-import { Logger, LogLevel } from '@huan_kong/logger'
 import ejs from 'ejs'
 import fs from 'node:fs'
 import process from 'node:process'
-import puppeteer, { type Viewport } from 'puppeteer'
+import puppeteer, { type Browser, type Viewport } from 'puppeteer'
 
 export type RenderOptions<T extends object = Record<string, unknown>> = (
   | { templatePath: string }
@@ -13,26 +12,18 @@ export type RenderOptions<T extends object = Record<string, unknown>> = (
   viewport?: Viewport
 }
 
-export interface PuppeteerConfig {
-  debug: boolean
-}
-
-export const browser = await puppeteer.launch()
-
 export class Puppeteer {
-  logger: Logger
-  config: PuppeteerConfig
-
-  constructor(config: PuppeteerConfig = { debug: process.argv.includes('--debug') }) {
-    this.config = config
-    this.logger = new Logger({
-      title: 'Puppeteer',
-      level: config.debug ? LogLevel.DEBUG : LogLevel.INFO,
-    })
-  }
+  static browser: Browser
 
   static async render(options: RenderOptions) {
-    const page = await browser.newPage()
+    if (!Puppeteer.browser) {
+      console.log('启动浏览器...')
+      Puppeteer.browser = await puppeteer.launch()
+
+      process.on('exit', Puppeteer.closeBrowser)
+    }
+
+    const page = await Puppeteer.browser.newPage()
 
     try {
       await page.setViewport({
@@ -73,8 +64,6 @@ export class Puppeteer {
   }
 
   static async closeBrowser() {
-    if (browser && browser.connected) await browser.close()
+    if (Puppeteer.browser && Puppeteer.browser.connected) await Puppeteer.browser.close()
   }
 }
-
-process.on('exit', Puppeteer.closeBrowser)
