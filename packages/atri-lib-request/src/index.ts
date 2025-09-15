@@ -80,65 +80,70 @@ export class Axios {
     return this.axiosInstance.request<T>(config)
   }
 
-  static REQUEST<T, P = null>(config: AxiosRequestConfig<P>) {
-    return axios.request<T, P>(config)
-  }
-
   get<T, P = null>(config: AxiosRequestConfig<P>) {
     return this.request<T, P>({ ...config, method: 'GET' })
-  }
-
-  static GET<T, P = null>(config: AxiosRequestConfig<P>) {
-    return axios.request<T, P>({ ...config, method: 'GET' })
   }
 
   delete<T, P = null>(config: AxiosRequestConfig<P>) {
     return this.request<T, P>({ ...config, method: 'DELETE' })
   }
 
-  static DELETE<T, P = null>(config: AxiosRequestConfig<P>) {
-    return axios.request<T, P>({ ...config, method: 'DELETE' })
-  }
-
   head<T, P = null>(config: AxiosRequestConfig<P>) {
     return this.request<T, P>({ ...config, method: 'HEAD' })
-  }
-
-  static HEAD<T, P = null>(config: AxiosRequestConfig<P>) {
-    return axios.request<T, P>({ ...config, method: 'HEAD' })
   }
 
   options<T, P = null>(config: AxiosRequestConfig<P>) {
     return this.request<T, P>({ ...config, method: 'OPTIONS' })
   }
 
-  static OPTIONS<T, P = null>(config: AxiosRequestConfig<P>) {
-    return axios.request<T, P>({ ...config, method: 'OPTIONS' })
-  }
-
   post<T, P = null>(config: AxiosRequestConfig<P>) {
     return this.request<T, P>({ ...config, method: 'POST' })
-  }
-
-  static POST<T, P = null>(config: AxiosRequestConfig<P>) {
-    return axios.request<T, P>({ ...config, method: 'POST' })
   }
 
   put<T, P = null>(config: AxiosRequestConfig<P>) {
     return this.request<T, P>({ ...config, method: 'PUT' })
   }
 
-  static PUT<T, P = null>(config: AxiosRequestConfig<P>) {
-    return axios.request<T, P>({ ...config, method: 'PUT' })
-  }
-
   patch<T, P = null>(config: AxiosRequestConfig<P>) {
     return this.request<T, P>({ ...config, method: 'PATCH' })
   }
 
-  static PATCH<T, P = null>(config: AxiosRequestConfig<P>) {
-    return axios.request<T, P>({ ...config, method: 'PATCH' })
+  static instance: Axios
+
+  static getInstance() {
+    if (!this.instance) this.instance = new Axios()
+    return this.instance
+  }
+
+  static request<T, P = null>(config: AxiosRequestConfig<P>) {
+    return this.getInstance().request<T, P>(config)
+  }
+
+  static get<T, P = null>(config: AxiosRequestConfig<P>) {
+    return this.getInstance().get<T, P>(config)
+  }
+
+  static delete<T, P = null>(config: AxiosRequestConfig<P>) {
+    return this.getInstance().delete<T, P>(config)
+  }
+
+  static head<T, P = null>(config: AxiosRequestConfig<P>) {
+    return this.getInstance().head<T, P>(config)
+  }
+
+  static options<T, P = null>(config: AxiosRequestConfig<P>) {
+    return this.getInstance().options<T, P>(config)
+  }
+
+  static post<T, P = null>(config: AxiosRequestConfig<P>) {
+    return this.getInstance().post<T, P>(config)
+  }
+
+  static put<T, P = null>(config: AxiosRequestConfig<P>) {
+    return this.getInstance().put<T, P>(config)
+  }
+
+  static patch<T, P = null>(config: AxiosRequestConfig<P>) {
+    return this.getInstance().patch<T, P>(config)
   }
 }
-
-export const axios = new Axios()
