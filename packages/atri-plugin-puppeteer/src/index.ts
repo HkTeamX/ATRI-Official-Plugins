@@ -43,6 +43,6 @@ export class Plugin extends BasePlugin {
   }
 
   async unload() {
-    Puppeteer.unloadBrowser()
+    Puppeteer.closeBrowser()
   }
 }

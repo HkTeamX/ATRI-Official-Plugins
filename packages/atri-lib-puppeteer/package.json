@@ -1,6 +1,6 @@
 {
   "name": "@atri-bot/lib-puppeteer",
-  "version": "1.1.0",
+  "version": "1.1.6",
   "description": "puppeteer lib for atri framework",
   "author": "huan_kong",
   "license": "MIT",
@@ -18,12 +18,9 @@
     "type-check": "tsc --noEmit -p tsconfig.json --composite false"
   },
   "dependencies": {
-    "@atri-bot/core": "^1.1.9",
-    "@huan_kong/logger": "^1.0.6",
-    "commander": "^14.0.0",
     "ejs": "^3.1.10",
-    "node-napcat-ts": "^0.4.19",
-    "puppeteer": "^24.19.0"
+    "puppeteer": "^24.20.0",
+    "@huan_kong/logger": "^1.0.6"
   },
   "devDependencies": {
     "@types/ejs": "^3.1.5"
