@@ -2,7 +2,7 @@ import { Logger, LogLevel } from '@huan_kong/logger'
 import ejs from 'ejs'
 import fs from 'node:fs'
 import process from 'node:process'
-import puppeteer, { type Viewport } from 'puppeteer'
+import puppeteer, { type Browser, type Viewport } from 'puppeteer'
 
 export type RenderOptions<T extends object = Record<string, unknown>> = (
   | { templatePath: string; data?: T }
@@ -17,8 +17,7 @@ export interface PuppeteerConfig {
   debug: boolean
 }
 
-let browser = await puppeteer.launch()
-process.on('exit', browser.close)
+let browser: Browser
 
 export class Puppeteer {
   config: PuppeteerConfig
@@ -32,11 +31,7 @@ export class Puppeteer {
   }
 
   async render(options: RenderOptions) {
-    if (!browser.connected) {
-      this.logger.DEBUG('浏览器被异常关闭, 正在重新启动')
-      browser = await puppeteer.launch()
-      this.logger.DEBUG('浏览器被异常关闭, 重新启动成功')
-    }
+    if (!browser || !browser.connected) browser = await puppeteer.launch()
 
     const page = await browser.newPage()
 
@@ -104,3 +99,5 @@ export class Puppeteer {
     return this.getInstance().closeBrowser()
   }
 }
+
+process.on('exit', Puppeteer.closeBrowser)
