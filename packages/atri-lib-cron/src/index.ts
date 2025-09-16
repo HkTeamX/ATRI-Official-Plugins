@@ -8,12 +8,13 @@ export interface CronConfig {
 
 export type AddCronOptions = Parameters<typeof CronJob.from>[0] & {
   onTick: () => void | Promise<void>
+  name: string
 }
 
 export class Cron {
   config: CronConfig
   logger: Logger
-  cronJobs: CronJob[] = []
+  cronJobs: Record<string, CronJob> = {}
 
   constructor(config: CronConfig = { debug: process.argv.includes('--debug') }) {
     this.config = config
@@ -23,7 +24,9 @@ export class Cron {
     })
   }
 
-  add(options: AddCronOptions) {
+  add(options: AddCronOptions): [1, string] | [0, CronJob] {
+    if (this.cronJobs[options.name]) return [1, `Cron job with name ${options.name} already exists`]
+
     if (!('timeZone' in options)) options.timeZone = 'Asia/Shanghai'
 
     options.onTick = () => {
@@ -31,9 +34,9 @@ export class Cron {
       options.onTick()
     }
 
-    const job = CronJob.from(options)
-    this.cronJobs.push(job as CronJob)
-    return job
+    const job = CronJob.from(options) as CronJob
+    this.cronJobs[options.name] = job
+    return [0, job]
   }
 
   getCronJobs() {
